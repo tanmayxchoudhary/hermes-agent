@@ -1532,43 +1532,17 @@ class TestGrok43StaleCacheGuard:
 # =========================================================================
 
 class TestClampEffortForOpenAICompat:
-    """`max` is Anthropic-only; degrade it to `xhigh` for non-Anthropic
-    models, but NEVER for Anthropic models (guard encoded in the helper)."""
+    """`max` is Anthropic-only; non-Anthropic emitters degrade to `xhigh`."""
 
-    def test_max_clamped_for_openai(self):
+    def test_max_clamped(self):
         assert clamp_effort_for_openai_compat("max", "gpt-5.4-mini") == "xhigh"
-
-    def test_max_clamped_for_xai_grok(self):
         assert clamp_effort_for_openai_compat("max", "grok-4.3") == "xhigh"
-
-    def test_max_clamped_for_unknown_model(self):
-        # Conservative: unknown (None) is treated as non-Anthropic -> clamp.
         assert clamp_effort_for_openai_compat("max", None) == "xhigh"
-        assert clamp_effort_for_openai_compat("max", "deepseek/deepseek-chat") == "xhigh"
+        assert clamp_effort_for_openai_compat("max") == "xhigh"
 
-    def test_max_preserved_for_anthropic_bare(self):
-        assert clamp_effort_for_openai_compat("max", "claude-opus-4-8") == "max"
-
-    def test_max_preserved_for_anthropic_prefixed(self):
-        assert clamp_effort_for_openai_compat("max", "anthropic/claude-sonnet-4.6") == "max"
-        assert clamp_effort_for_openai_compat("max", "openrouter/anthropic/claude-3.5") == "max"
-
-    def test_guard_not_defeated_by_substring_alias(self):
-        """Tightened guard: a NON-Anthropic model that merely contains the
-        token 'claude' somewhere (proxy alias / finetune label) must NOT be
-        treated as Anthropic — otherwise `max` leaks to an OpenAI-compat
-        backend and 400s. Only real `claude-*` / `anthropic/` ids preserve max."""
-        # Not Anthropic: 'claude' appears but not as a provider/model prefix.
-        assert clamp_effort_for_openai_compat("max", "my-claude-proxy/gpt-5") == "xhigh"
-        assert clamp_effort_for_openai_compat("max", "openrouter/some-claudelike-7b") == "xhigh"
-        # Real Anthropic ids still preserved.
-        assert clamp_effort_for_openai_compat("max", "claude-opus-4-8") == "max"
-
-    def test_non_max_levels_pass_through_unchanged(self):
+    def test_non_max_passes_through(self):
         for level in ("minimal", "low", "medium", "high", "xhigh"):
             assert clamp_effort_for_openai_compat(level, "gpt-5.4-mini") == level
-            # ...and unchanged for Anthropic too.
-            assert clamp_effort_for_openai_compat(level, "claude-opus-4-8") == level
 
-    def test_none_effort_passes_through(self):
+    def test_none_passes_through(self):
         assert clamp_effort_for_openai_compat(None, "gpt-5.4-mini") is None

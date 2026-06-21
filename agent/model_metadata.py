@@ -367,59 +367,12 @@ def grok_supports_reasoning_effort(model: str) -> bool:
 # model-agnostic, so NON-Anthropic emitters route the resolved effort through
 # this helper, which degrades ``max`` to the OpenAI/xAI ceiling ``xhigh``.
 #
-# SEMANTICS (intentionally documented honestly): ``max`` means "best available
-# reasoning effort, degraded to each backend's ceiling" — Anthropic gets true
-# ``max``; OpenAI/xAI get ``xhigh``; backends with their own narrower clamp
-# (Gemini xhigh->high, GitHub Models' probed support set) degrade further
-# downstream. It is NOT a guarantee of a single literal effort level across
-# providers.
-#
-# GUARD: the Anthropic check is encoded INSIDE this helper (not left to
-# call-site discipline) so a future caller cannot accidentally strip real
-# ``max`` from a Claude model — e.g. Claude routed via OpenRouter, where
-# ``max`` is valid and maps to Anthropic's ``output_config.effort`` through
-# the ``verbosity`` field. Only ``max`` is touched; every other level passes
-# through unchanged so genuinely-unknown models keep whatever was requested.
-def _is_anthropic_model_name(model: str | None) -> bool:
-    """Return True for Anthropic/Claude model ids (any aggregator prefix).
-
-    Path-segment aware rather than a loose substring scan: we check the
-    provider prefix and the bare model name's leading token, so an unrelated
-    model that merely *contains* the word "claude" somewhere (a proxy alias,
-    a finetune label) is not misclassified as Anthropic. Recognizes:
-      - bare ``claude-*`` (Anthropic native ids start with ``claude-``)
-      - ``anthropic/...`` provider prefix (incl. ``openrouter/anthropic/...``)
-    """
-    name = (model or "").strip().lower()
-    if not name:
-        return False
-    segments = name.split("/")
-    # Any path segment that is the Anthropic provider, or a model segment that
-    # begins with the Anthropic-native ``claude-`` / ``claude.`` prefix.
-    for seg in segments:
-        seg = seg.strip()
-        if seg == "anthropic":
-            return True
-        if seg.startswith("claude-") or seg.startswith("claude."):
-            return True
-    return False
-
-
-def clamp_effort_for_openai_compat(effort: str | None, model: str | None) -> str | None:
-    """Degrade Anthropic-only ``max`` to the OpenAI/xAI ceiling ``xhigh``.
-
-    Returns ``effort`` unchanged for every value except ``max``, and even for
-    ``max`` returns it unchanged when ``model`` is an Anthropic model (which
-    legitimately accepts ``max``). See the module comment above for the full
-    rationale, semantics, and the guard contract. Safe to call from any
-    non-Anthropic emit site; safe even if mistakenly called on an Anthropic
-    path (the internal guard preserves ``max`` there).
-    """
-    if effort != "max":
-        return effort
-    if _is_anthropic_model_name(model):
-        return effort  # Anthropic accepts max — never strip it.
-    return "xhigh"
+# `max` is Anthropic-only. Non-Anthropic emitters call this to degrade to
+# their ceiling (`xhigh` for OpenAI/xAI; narrower backends clamp further
+# downstream). Only `max` is touched; everything else passes through.
+def clamp_effort_for_openai_compat(effort: str | None, model: str | None = None) -> str | None:
+    """Degrade ``max`` → ``xhigh`` for non-Anthropic emit sites."""
+    return "xhigh" if effort == "max" else effort
 
 
 _CONTEXT_LENGTH_KEYS = (
