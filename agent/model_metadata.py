@@ -381,13 +381,28 @@ def grok_supports_reasoning_effort(model: str) -> bool:
 # the ``verbosity`` field. Only ``max`` is touched; every other level passes
 # through unchanged so genuinely-unknown models keep whatever was requested.
 def _is_anthropic_model_name(model: str | None) -> bool:
-    """Return True for Anthropic/Claude model ids (any aggregator prefix)."""
+    """Return True for Anthropic/Claude model ids (any aggregator prefix).
+
+    Path-segment aware rather than a loose substring scan: we check the
+    provider prefix and the bare model name's leading token, so an unrelated
+    model that merely *contains* the word "claude" somewhere (a proxy alias,
+    a finetune label) is not misclassified as Anthropic. Recognizes:
+      - bare ``claude-*`` (Anthropic native ids start with ``claude-``)
+      - ``anthropic/...`` provider prefix (incl. ``openrouter/anthropic/...``)
+    """
     name = (model or "").strip().lower()
     if not name:
         return False
-    # Match anywhere: handles bare ``claude-opus-4-8`` and prefixed
-    # ``anthropic/claude-sonnet-4.6`` / ``openrouter/anthropic/claude-...``.
-    return "claude" in name or "anthropic" in name
+    segments = name.split("/")
+    # Any path segment that is the Anthropic provider, or a model segment that
+    # begins with the Anthropic-native ``claude-`` / ``claude.`` prefix.
+    for seg in segments:
+        seg = seg.strip()
+        if seg == "anthropic":
+            return True
+        if seg.startswith("claude-") or seg.startswith("claude."):
+            return True
+    return False
 
 
 def clamp_effort_for_openai_compat(effort: str | None, model: str | None) -> str | None:

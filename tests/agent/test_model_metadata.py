@@ -1553,6 +1553,17 @@ class TestClampEffortForOpenAICompat:
         assert clamp_effort_for_openai_compat("max", "anthropic/claude-sonnet-4.6") == "max"
         assert clamp_effort_for_openai_compat("max", "openrouter/anthropic/claude-3.5") == "max"
 
+    def test_guard_not_defeated_by_substring_alias(self):
+        """Tightened guard: a NON-Anthropic model that merely contains the
+        token 'claude' somewhere (proxy alias / finetune label) must NOT be
+        treated as Anthropic — otherwise `max` leaks to an OpenAI-compat
+        backend and 400s. Only real `claude-*` / `anthropic/` ids preserve max."""
+        # Not Anthropic: 'claude' appears but not as a provider/model prefix.
+        assert clamp_effort_for_openai_compat("max", "my-claude-proxy/gpt-5") == "xhigh"
+        assert clamp_effort_for_openai_compat("max", "openrouter/some-claudelike-7b") == "xhigh"
+        # Real Anthropic ids still preserved.
+        assert clamp_effort_for_openai_compat("max", "claude-opus-4-8") == "max"
+
     def test_non_max_levels_pass_through_unchanged(self):
         for level in ("minimal", "low", "medium", "high", "xhigh"):
             assert clamp_effort_for_openai_compat(level, "gpt-5.4-mini") == level
