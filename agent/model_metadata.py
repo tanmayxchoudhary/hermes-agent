@@ -357,6 +357,56 @@ def grok_supports_reasoning_effort(model: str) -> bool:
     return any(name.startswith(prefix) for prefix in _GROK_EFFORT_CAPABLE_PREFIXES)
 
 
+# ── Reasoning-effort ceiling normalization ───────────────────────────────
+# ``max`` is the TOP of Anthropic's adaptive-thinking ladder
+# (low<medium<high<xhigh<max) and is Anthropic-only. OpenAI Responses and
+# xAI Grok reject it with HTTP 400 (OpenAI verified live 2026-06-21:
+# "Invalid value: 'max'. Supported: none,minimal,low,medium,high,xhigh";
+# xAI rejection inferred from the same OpenAI-compat effort vocabulary, not
+# yet live-probed). A single global ``agent.reasoning_effort: max`` must stay
+# model-agnostic, so NON-Anthropic emitters route the resolved effort through
+# this helper, which degrades ``max`` to the OpenAI/xAI ceiling ``xhigh``.
+#
+# SEMANTICS (intentionally documented honestly): ``max`` means "best available
+# reasoning effort, degraded to each backend's ceiling" — Anthropic gets true
+# ``max``; OpenAI/xAI get ``xhigh``; backends with their own narrower clamp
+# (Gemini xhigh->high, GitHub Models' probed support set) degrade further
+# downstream. It is NOT a guarantee of a single literal effort level across
+# providers.
+#
+# GUARD: the Anthropic check is encoded INSIDE this helper (not left to
+# call-site discipline) so a future caller cannot accidentally strip real
+# ``max`` from a Claude model — e.g. Claude routed via OpenRouter, where
+# ``max`` is valid and maps to Anthropic's ``output_config.effort`` through
+# the ``verbosity`` field. Only ``max`` is touched; every other level passes
+# through unchanged so genuinely-unknown models keep whatever was requested.
+def _is_anthropic_model_name(model: str | None) -> bool:
+    """Return True for Anthropic/Claude model ids (any aggregator prefix)."""
+    name = (model or "").strip().lower()
+    if not name:
+        return False
+    # Match anywhere: handles bare ``claude-opus-4-8`` and prefixed
+    # ``anthropic/claude-sonnet-4.6`` / ``openrouter/anthropic/claude-...``.
+    return "claude" in name or "anthropic" in name
+
+
+def clamp_effort_for_openai_compat(effort: str | None, model: str | None) -> str | None:
+    """Degrade Anthropic-only ``max`` to the OpenAI/xAI ceiling ``xhigh``.
+
+    Returns ``effort`` unchanged for every value except ``max``, and even for
+    ``max`` returns it unchanged when ``model`` is an Anthropic model (which
+    legitimately accepts ``max``). See the module comment above for the full
+    rationale, semantics, and the guard contract. Safe to call from any
+    non-Anthropic emit site; safe even if mistakenly called on an Anthropic
+    path (the internal guard preserves ``max`` there).
+    """
+    if effort != "max":
+        return effort
+    if _is_anthropic_model_name(model):
+        return effort  # Anthropic accepts max — never strip it.
+    return "xhigh"
+
+
 _CONTEXT_LENGTH_KEYS = (
     "context_length",
     "context_window",
