@@ -161,7 +161,7 @@ class OpenRouterProfile(ProviderProfile):
                 from agent.model_metadata import clamp_effort_for_openai_compat
                 rc = dict(reasoning_config)
                 if rc.get("effort") is not None:
-                    rc["effort"] = clamp_effort_for_openai_compat(rc.get("effort"), model)
+                    rc["effort"] = clamp_effort_for_openai_compat(rc.get("effort"))
                 extra_body["reasoning"] = rc
             else:
                 extra_body["reasoning"] = {"enabled": True, "effort": "medium"}

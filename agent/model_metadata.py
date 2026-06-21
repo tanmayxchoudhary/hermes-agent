@@ -367,10 +367,8 @@ def grok_supports_reasoning_effort(model: str) -> bool:
 # model-agnostic, so NON-Anthropic emitters route the resolved effort through
 # this helper, which degrades ``max`` to the OpenAI/xAI ceiling ``xhigh``.
 #
-# `max` is Anthropic-only. Non-Anthropic emitters call this to degrade to
-# their ceiling (`xhigh` for OpenAI/xAI; narrower backends clamp further
-# downstream). Only `max` is touched; everything else passes through.
-def clamp_effort_for_openai_compat(effort: str | None, model: str | None = None) -> str | None:
+# `max` is Anthropic-only; non-Anthropic emitters degrade to `xhigh`.
+def clamp_effort_for_openai_compat(effort: str | None) -> str | None:
     """Degrade ``max`` → ``xhigh`` for non-Anthropic emit sites."""
     return "xhigh" if effort == "max" else effort
 

@@ -1534,15 +1534,8 @@ class TestGrok43StaleCacheGuard:
 class TestClampEffortForOpenAICompat:
     """`max` is Anthropic-only; non-Anthropic emitters degrade to `xhigh`."""
 
-    def test_max_clamped(self):
-        assert clamp_effort_for_openai_compat("max", "gpt-5.4-mini") == "xhigh"
-        assert clamp_effort_for_openai_compat("max", "grok-4.3") == "xhigh"
-        assert clamp_effort_for_openai_compat("max", None) == "xhigh"
+    def test_clamp(self):
         assert clamp_effort_for_openai_compat("max") == "xhigh"
-
-    def test_non_max_passes_through(self):
-        for level in ("minimal", "low", "medium", "high", "xhigh"):
-            assert clamp_effort_for_openai_compat(level, "gpt-5.4-mini") == level
-
-    def test_none_passes_through(self):
-        assert clamp_effort_for_openai_compat(None, "gpt-5.4-mini") is None
+        assert clamp_effort_for_openai_compat("xhigh") == "xhigh"
+        assert clamp_effort_for_openai_compat("high") == "high"
+        assert clamp_effort_for_openai_compat(None) is None
